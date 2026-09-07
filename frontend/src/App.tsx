@@ -217,8 +217,8 @@ function App() {
               Startup Boardroom
             </div>
 
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#817B72]">
-              Founder intelligence
+            <div className="text-[9px] font-bold leading-3 tracking-wide text-[#817B72] sm:text-[10px]">
+              A Multi-Agent LLM-Based Boardroom for Collaborative Startup Idea Evaluation
             </div>
 
           </div>
