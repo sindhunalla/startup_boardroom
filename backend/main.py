@@ -2,7 +2,6 @@ import asyncio
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_openai.chat_models.base import OpenAIRateLimitError
 
 from models.schemas import StartupIdea, BoardroomResults
 
@@ -20,7 +19,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +39,6 @@ async def root():
 
 @app.post("/analyze", response_model=BoardroomResults)
 async def analyze_startup(idea: StartupIdea):
-
     try:
         # Run the five independent analysts in parallel.
         results = await asyncio.gather(
@@ -64,11 +65,22 @@ async def analyze_startup(idea: StartupIdea):
             strategy_analysis,
         ]
 
-        # These two agents depend on the five analyst reports,
-        # so they run after the analysts finish.
-        validation_report, boardroom_summary = await asyncio.gather(
-            asyncio.to_thread(validation_agent, idea, analyses),
-            asyncio.to_thread(boardroom_summary_agent, idea, analyses),
+        # IMPORTANT:
+        # Run these one at a time so they don't compete for
+        # Groq's tokens-per-minute limit.
+        validation_report = await asyncio.to_thread(
+            validation_agent,
+            idea,
+            analyses,
+        )
+
+        # Small pause to allow the Groq TPM window to recover.
+        await asyncio.sleep(2)
+
+        boardroom_summary = await asyncio.to_thread(
+            boardroom_summary_agent,
+            idea,
+            analyses,
         )
 
         return BoardroomResults(
@@ -78,17 +90,13 @@ async def analyze_startup(idea: StartupIdea):
             boardroom_summary=boardroom_summary,
         )
 
-    except OpenAIRateLimitError:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                "The AI boardroom has temporarily reached its API request limit. "
-                "Please wait for the limit to reset and try again."
-            ),
-        )
-
     except Exception as error:
-        print("ANALYSIS ERROR:", repr(error))
+        import traceback
+
+        print("\n========== ANALYSIS ERROR ==========")
+        print(repr(error))
+        traceback.print_exc()
+        print("====================================\n")
 
         raise HTTPException(
             status_code=500,

@@ -1,6 +1,8 @@
-from dotenv import load_dotenv
-from utils.llm import get_llm
+import json
 
+from dotenv import load_dotenv
+
+from utils.llm import get_llm
 from models.schemas import (
     StartupIdea,
     AgentAnalysis,
@@ -10,8 +12,7 @@ from models.schemas import (
 
 load_dotenv(override=True)
 
-
-llm = get_llm().with_structured_output(AgentAnalysis)
+llm = get_llm()
 
 
 def boardroom_summary_agent(
@@ -19,62 +20,95 @@ def boardroom_summary_agent(
     analyses: list[AgentAnalysis],
 ) -> BoardroomSummary:
 
-    analyst_context = "\n\n".join(
-        [
-            f"""
-ANALYST: {analysis.agent_name}
-
-SCORE: {analysis.score}/10
-CONFIDENCE: {analysis.confidence}
-
-STRENGTHS:
-{analysis.strengths}
-
-WEAKNESSES:
-{analysis.weaknesses}
-
-ASSUMPTIONS:
-{analysis.assumptions}
-
-UNKNOWNS:
-{analysis.unknowns}
-
-BOTTOM LINE:
-{analysis.bottom_line}
-"""
-            for analysis in analyses
-        ]
+    analyses_text = json.dumps(
+        [analysis.model_dump() for analysis in analyses],
+        indent=2,
     )
 
     prompt = f"""
 You are the Boardroom Summary Agent for Startup Boardroom.
 
-Your job is to synthesize the five independent analyst reports without making the final decision.
+Your job is to synthesize the five independent analyst reports.
 
-Startup name:
+Startup:
 {idea.name}
 
-Startup description:
+Description:
 {idea.description}
 
 Analyst reports:
-{analyses}
+{analyses_text}
 
-Identify:
+Your job is NOT to make the final startup decision.
+
+Do NOT average the analyst scores.
+
+Instead identify:
+
 - The strongest area across the reports
-- The weakest area
+- The weakest area across the reports
 - The biggest disagreement between analysts
 - The most important unanswered question
-- A concise summary of what the founder should understand
+- A concise neutral founder takeaway
+
+IMPORTANT:
+
+The founder must remain the final decision-maker.
+
+Do not say "build it", "don't build it", "invest", or "reject"
+as a definitive recommendation.
+
+Return ONLY valid JSON.
+
+The JSON must contain EXACTLY these fields:
+
+{{
+  "strongest_area": "",
+  "weakest_area": "",
+  "biggest_disagreement": "",
+  "key_question": "",
+  "summary": ""
+}}
 
 Rules:
-- Do not average or combine analyst scores into a final score.
-- Do not declare the startup a winner or loser.
-- Preserve meaningful disagreement between analysts.
-- Do not invent facts or statistics.
-- Base the summary only on the provided reports.
-- Keep the synthesis concise.
 
-Return a structured BoardroomSummary.
+- All five fields must be strings.
+- strongest_area should identify the strongest recurring positive signal.
+- weakest_area should identify the biggest weakness or concern.
+- biggest_disagreement should explain where analysts disagree.
+- key_question should identify the most important unanswered question.
+- summary should be concise and neutral.
+- Do not invent facts or statistics.
+- Do not introduce information that is not present in the startup description
+  or analyst reports.
+- Do not calculate or average scores.
+- Do not produce Markdown.
+- Do not produce a table.
+- Do not include code fences.
+
+Return ONLY the JSON object.
 """
-    return llm.invoke(prompt)
+
+    response = llm.invoke(prompt)
+
+    content = response.content
+
+    if not isinstance(content, str):
+        content = str(content)
+
+    content = content.strip()
+
+    if content.startswith("```json"):
+        content = content[7:]
+
+    if content.startswith("```"):
+        content = content[3:]
+
+    if content.endswith("```"):
+        content = content[:-3]
+
+    content = content.strip()
+
+    data = json.loads(content)
+
+    return BoardroomSummary.model_validate(data)
