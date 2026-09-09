@@ -2556,7 +2556,7 @@ function App() {
     setOpenInfo(null)
 
     try {
-      const response = await fetch("https://startup-boardroom-backend.vercel.app/analyze", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
