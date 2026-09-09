@@ -127,6 +127,9 @@ Return ONLY the JSON object.
     if start != -1 and end != -1:
         content = content[start:end + 1]
 
+    # Repair a common missing-comma error between JSON fields.
+    content = content.replace(']","assumptions"', '],"assumptions"')
+
     try:
         data = json.loads(content)
 

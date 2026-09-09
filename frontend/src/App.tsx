@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 type AnalysisPoint = {
   point: string
@@ -287,54 +288,92 @@ const processSteps = [
     bg: "bg-[#C8F560]",
   },
 ]
-
 function InfoButton({
   text,
   about,
   open,
   onClick,
+  previous,
+  next,
+  onPrevious,
+  onNext,
 }: {
   text?: string
   about?: AgentAbout
   open: boolean
   onClick: () => void
+  previous?: string
+  next?: string
+  onPrevious?: () => void
+  onNext?: () => void
 }) {
-  return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-expanded={open}
-        aria-label={open ? "Hide explanation" : "Show explanation"}
-        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-[#242323] text-[10px] font-black transition ${
-          open
-            ? "bg-[#242323] text-white"
-            : "bg-transparent text-[#242323] hover:bg-[#242323] hover:text-white"
-        }`}
-      >
-        i
-      </button>
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const onClickRef = useRef(onClick)
 
-      {open && (
+  onClickRef.current = onClick
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node
+
+      const clickedButton =
+        buttonRef.current?.contains(target)
+
+      const clickedPopup =
+        popupRef.current?.contains(target)
+
+      if (!clickedButton && !clickedPopup) {
+        onClickRef.current()
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClickRef.current()
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsideClick)
+    document.addEventListener("keydown", handleEscape)
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handleOutsideClick
+      )
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      )
+    }
+  }, [open])
+
+  const popup = open
+    ? createPortal(
         <div
+          ref={popupRef}
           className="
-            absolute
+            fixed
             left-1/2
-            top-8
-            z-50
-            w-[min(22rem,calc(100vw-2rem))]
-            max-h-[70vh]
+            top-1/2
+            z-[9999]
+            w-[min(32rem,calc(100vw-2rem))]
+            max-h-[80vh]
             -translate-x-1/2
+            -translate-y-1/2
             overflow-y-auto
             border-2
             border-[#242323]
             bg-[#FFFDF7]
-            p-5
+            p-6
             text-left
-            shadow-[5px_5px_0_#242323]
+            shadow-[6px_6px_0_#242323]
           "
         >
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-5 flex items-center justify-between gap-3">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#817B72]">
               About this
             </span>
@@ -343,31 +382,31 @@ function InfoButton({
               type="button"
               onClick={onClick}
               aria-label="Close explanation"
-              className="flex h-5 w-5 cursor-pointer items-center justify-center text-sm font-black text-[#242323] hover:opacity-60"
+              className="flex h-6 w-6 cursor-pointer items-center justify-center text-lg font-black text-[#242323] hover:opacity-60"
             >
               ×
             </button>
           </div>
 
           {about ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
                 <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#817B72]">
                   What it checks
                 </div>
 
-                <p className="text-[13px] leading-5 text-[#4F4A45]">
+                <p className="text-[14px] leading-6 text-[#4F4A45]">
                   {about.checks}
                 </p>
               </div>
 
-              <div className="border-l-2 border-[#C8F560] pl-3">
+              <div className="border-l-2 border-[#C8F560] pl-4">
                 <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#817B72]">
                   In simple words
                 </div>
 
-                <p className="text-[14px] font-bold leading-5 text-[#242323]">
-                  “{about.simple}”
+                <p className="text-[15px] font-bold leading-6 text-[#242323]">
+                  {about.simple}
                 </p>
               </div>
 
@@ -376,17 +415,17 @@ function InfoButton({
                   What it looks at
                 </div>
 
-                <div className="space-y-2">
+                <ul className="space-y-2">
                   {about.looksAt.map((item, index) => (
-                    <div
+                    <li
                       key={index}
-                      className="flex gap-2 text-[13px] leading-5 text-[#4F4A45]"
+                      className="flex gap-2 text-[14px] leading-6 text-[#5F5A54]"
                     >
-                      <span className="font-black">•</span>
+                      <span className="font-black">→</span>
                       <span>{item}</span>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
 
               <div className="border-t border-[#242323]/15 pt-4">
@@ -394,17 +433,74 @@ function InfoButton({
                   Why it matters
                 </div>
 
-                <p className="text-[13px] leading-5 text-[#4F4A45]">
+                <p className="text-[14px] leading-6 text-[#4F4A45]">
                   {about.matters}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="text-[13px] leading-5 text-[#4F4A45]">{text}</p>
+            <p className="text-[14px] leading-6 text-[#4F4A45]">
+              {text}
+            </p>
           )}
-        </div>
-      )}
-    </div>
+
+          {(previous || next) && (
+            <div className="mt-6 flex items-center justify-between gap-3 border-t-2 border-[#242323] pt-4">
+              <button
+                type="button"
+                onClick={onPrevious}
+                disabled={!previous}
+                className={`border-2 border-[#242323] px-3 py-2 text-[11px] font-black ${
+                  previous
+                    ? "bg-[#FFFDF7] hover:bg-[#C8F560]"
+                    : "cursor-not-allowed opacity-30"
+                }`}
+              >
+                ← PREVIOUS
+              </button>
+
+              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-[#817B72]">
+                Perspective
+              </span>
+
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!next}
+                className={`border-2 border-[#242323] px-3 py-2 text-[11px] font-black ${
+                  next
+                    ? "bg-[#C8F560] hover:bg-white"
+                    : "cursor-not-allowed opacity-30"
+                }`}
+              >
+                NEXT →
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )
+    : null
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        aria-expanded={open}
+        aria-label={open ? "Hide explanation" : "Show explanation"}
+        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-[#242323] text-[10px] font-black ${
+          open
+            ? "bg-[#242323] text-white"
+            : "bg-transparent text-[#242323] hover:bg-[#242323] hover:text-white"
+        }`}
+      >
+        i
+      </button>
+
+      {popup}
+    </>
   )
 }
 
@@ -2531,9 +2627,20 @@ function App() {
           onClick={resetToLanding}
           className="group flex items-center gap-3"
         >
-          <div className="flex h-10 w-10 rotate-[-3deg] items-center justify-center bg-[#C8F560] font-black shadow-[3px_3px_0_#242323] transition group-hover:rotate-3">
-            SB
-          </div>
+           <div className="group/logo relative flex h-11 w-11 rotate-[-4deg] items-center justify-center border-2 border-[#242323] bg-[#C8F560] shadow-[4px_4px_0_#242323] transition-all duration-200 group-hover:rotate-2 group-hover:shadow-[2px_2px_0_#242323]">
+
+  {/* Boardroom table / connection line */}
+  <div className="absolute bottom-[7px] left-[7px] right-[7px] h-[2px] bg-[#242323]" />
+
+  {/* SB brand mark */}
+  <span className="relative z-10 text-[18px] font-black tracking-[-0.08em] text-[#242323]">
+    SB
+  </span>
+
+  {/* Small boardroom indicator */}
+  <span className="absolute right-[4px] top-[4px] h-[4px] w-[4px] rounded-full bg-[#242323]" />
+
+</div>
 
           <div className="text-left">
             <div className="font-black tracking-tight">
@@ -2710,104 +2817,100 @@ function App() {
 
             {/* AGENT INTRODUCTION */}
 
-            <div className="mt-16">
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#817B72]">
-                    Who's sitting at the table?
-                  </h2>
+<div className="mt-16">
+  <div className="mb-6 flex items-center justify-between">
+    <div>
+      <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#817B72]">
+        Who's sitting at the table?
+      </h2>
 
-                  <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[#68635D]">
-                    Five independent analysts look at the startup from
-                    different angles. Two supporting agents then synthesize
-                    the discussion and turn uncertainty into things you can
-                    test.
-                  </p>
-                </div>
+      <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[#68635D]">
+        Five independent analysts look at the startup from
+        different angles. Two supporting agents then synthesize
+        the discussion and turn uncertainty into things you can
+        test.
+      </p>
+    </div>
 
-                <span className="hidden text-xs font-bold text-[#AAA298] sm:block">
-                  05 + 02
-                </span>
-              </div>
+    <span className="hidden text-xs font-bold text-[#AAA298] sm:block">
+      05 + 02
+    </span>
+  </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {Object.values(analystConfig).map((agent) => (
-                  <div
-                    key={agent.label}
-                    className={`${agent.bg} border border-[#242323]/10 p-5 transition hover:-translate-y-1`}
-                  >
-                    <div className="mb-8 flex items-start justify-between">
-                      <span className="text-2xl font-black">{agent.icon}</span>
+  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+    {[
+      ...Object.values(analystConfig),
+      ...supportAgentConfig,
+    ].map((agent, index, agents) => (
+      <div
+        key={agent.label}
+        className={`${agent.bg} ${
+          index >= 5
+            ? "border-2 border-[#242323] shadow-[4px_4px_0_#242323]"
+            : "border border-[#242323]/10"
+        } p-5 transition hover:-translate-y-1`}
+      >
+        <div className="mb-8 flex items-start justify-between">
+          <span className="text-2xl font-black">
+            {agent.icon}
+          </span>
 
-                      <div className="flex items-center gap-2">
-                        <InfoButton
-                          about={agent.about}
-                          open={openInfo === `intro-${agent.label}`}
-                          onClick={() =>
-                            toggleInfo(`intro-${agent.label}`)
-                          }
-                        />
+          <div className="flex items-center gap-2">
+            <InfoButton
+              about={agent.about}
+              open={openInfo === `intro-${agent.label}`}
+              onClick={() =>
+                toggleInfo(`intro-${agent.label}`)
+              }
+              previous={
+                index > 0
+                  ? agents[index - 1].label
+                  : undefined
+              }
+              next={
+                index < agents.length - 1
+                  ? agents[index + 1].label
+                  : undefined
+              }
+              onPrevious={() => {
+                if (index > 0) {
+                  setOpenInfo(
+                    `intro-${agents[index - 1].label}`
+                  )
+                }
+              }}
+              onNext={() => {
+                if (index < agents.length - 1) {
+                  setOpenInfo(
+                    `intro-${agents[index + 1].label}`
+                  )
+                }
+              }}
+            />
 
-                        <span className="text-[10px] font-black text-[#817B72]">
-                          {agent.number}
-                        </span>
-                      </div>
-                    </div>
+            <span className="text-[10px] font-black text-[#817B72]">
+              {agent.number}
+            </span>
+          </div>
+        </div>
 
-                    <div className="text-[11px] font-black tracking-wider">
-                      {agent.label}
-                    </div>
+        <div className="text-[11px] font-black tracking-wider">
+          {agent.label}
+        </div>
 
-                    <div className="mt-1 text-xs text-[#77716A]">
-                      {agent.role}
-                    </div>
+        <div className="mt-1 text-xs text-[#77716A]">
+          {agent.role}
+        </div>
 
-                    <p className="mt-4 text-[13px] leading-5 text-[#5F5A54]">
-                      {agent.description}
-                    </p>
-                  </div>
-                ))}
-
-                {supportAgentConfig.map((agent) => (
-                  <div
-                    key={agent.label}
-                    className={`${agent.bg} border-2 border-[#242323] p-5 shadow-[4px_4px_0_#242323] transition hover:-translate-y-1`}
-                  >
-                    <div className="mb-8 flex items-start justify-between">
-                      <span className="text-2xl font-black">{agent.icon}</span>
-
-                      <div className="flex items-center gap-2">
-                        <InfoButton
-                          about={agent.about}
-                          open={openInfo === `intro-${agent.label}`}
-                          onClick={() =>
-                            toggleInfo(`intro-${agent.label}`)
-                          }
-                        />
-
-                        <span className="text-[10px] font-black text-[#817B72]">
-                          {agent.number}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] font-black tracking-wider">
-                      {agent.label}
-                    </div>
-
-                    <div className="mt-1 text-xs text-[#77716A]">
-                      {agent.role}
-                    </div>
-
-                    <p className="mt-4 text-[13px] leading-5 text-[#5F5A54]">
-                      {agent.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
+        <p className="mt-4 text-[13px] leading-5 text-[#5F5A54]">
+          {agent.description}
+        </p>
+      </div>
+    ))}
+  </div>
+</div>
+</section>
+)}
 
         {/* RESULTS */}
 
