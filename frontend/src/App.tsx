@@ -2556,7 +2556,7 @@ function App() {
     setOpenInfo(null)
 
     try {
-      const response = await fetch("/api/analyze", {
+      const response = await fetch("/svc/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
