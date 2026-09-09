@@ -2556,7 +2556,7 @@ function App() {
     setOpenInfo(null)
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/analyze", {
+      const response = await fetch("https://startup-boardroom-backend.vercel.app/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
