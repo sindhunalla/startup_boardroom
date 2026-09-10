@@ -38,6 +38,7 @@ async def root():
 
 
 @app.post("/analyze", response_model=BoardroomResults)
+@app.post("/svc/api/analyze", response_model=BoardroomResults)
 async def analyze_startup(idea: StartupIdea):
     try:
         # Run the five independent analysts in parallel.

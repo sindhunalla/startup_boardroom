@@ -1,9 +1,13 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 
-load_dotenv(override=True)
+load_dotenv(
+    dotenv_path=Path(__file__).resolve().parent.parent / ".env",
+    override=True,
+)
 
 MODEL_NAME = "openai/gpt-oss-20b"
 
